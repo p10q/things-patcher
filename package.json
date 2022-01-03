@@ -1,0 +1,15 @@
+{
+  "name": "things-patcher",
+  "version": "1.0.0",
+  "description": "A git-patch-like workflow for the Things.app",
+  "keywords": [
+    "things app",
+    "things"
+  ],
+  "author": "Tom Harada (tmharada@gmail.com)",
+  "license": "MIT",
+  "devDependencies": {},
+  "dependencies": {
+    "better-sqlite3": "^7.4.6"
+  }
+}

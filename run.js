@@ -153,6 +153,8 @@ const moveProject = (id, projectKeyUser) => {
 };
 
 const recursiveAsyncReadLine = function() {
+  i = (i < 0) ? 0 : i
+  i = (i == inboxNotes.length) ? inboxNotes.length - 1 : i
   const notes = (inboxNotes[i].notes || "")
     .split("\n")
     .map(a => `\t${a}`)

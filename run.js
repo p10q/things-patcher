@@ -16,7 +16,7 @@ const db = require("better-sqlite3")(
 const readline = require("readline");
 const rl = readline.createInterface({
   input: process.stdin,
-  output: process.stdout
+  output: process.stdout,
 });
 
 const keys = [
@@ -60,7 +60,7 @@ const keys = [
   "D",
   "E",
   "F",
-  "G"
+  "G",
 ];
 
 const inboxNotes = db
@@ -87,14 +87,13 @@ const projectIdToInfo = allNotes.reduce((acc, item) => {
 }, {});
 
 db.close();
-console.log(projectIdToInfo);
+//console.log(projectIdToInfo);
 
-//const topProjects = [...Object.entries(projectIdToInfo).map((key, value) => {})]
 const topProjects = [...Object.entries(projectIdToInfo)]
   .sort(([akey, avalue], [bkey, bvalue]) => bvalue.count - avalue.count)
   .slice(0, keys.length);
 
-console.log(topProjects);
+//console.log(topProjects);
 
 const topProjectsText =
   "q: cancel\n" +
@@ -108,18 +107,12 @@ const topProjectsText =
 
 let i = 0;
 
-const complete = id => {
+const complete = (id) => {
   const now = new Date().toISOString();
   const exec = require("child_process").exec;
-  console.log("executing");
-  console.log(
-    `open 'things:///update?auth-token=${authToken}&id=${id}&completed=true&completion-date=${now}'`
-  );
   exec(
     `open 'things:///update?auth-token=${authToken}&id=${id}&completed=true&completion-date=${now}'`,
     (error, stdout, stderr) => {
-      //console.log(`stdout: ${stdout}`);
-      //console.log(`stderr: ${stderr}`);
       if (error !== null) {
         console.log(`exec error: ${error}`);
       }
@@ -128,7 +121,7 @@ const complete = id => {
 };
 
 const moveProject = (id, projectKeyUser) => {
-  const projectIndex = keys.findIndex(a => a === projectKeyUser);
+  const projectIndex = keys.findIndex((a) => a === projectKeyUser);
   if (projectIndex === -1) {
     console.log("Not able to find that project");
     return;
@@ -137,14 +130,9 @@ const moveProject = (id, projectKeyUser) => {
 
   const now = new Date().toISOString();
   const exec = require("child_process").exec;
-  console.log(
-    `open 'things:///update?auth-token=${authToken}&id=${id}&list-id=${projectKey}'`
-  );
   exec(
     `open 'things:///update?auth-token=${authToken}&id=${id}&list-id=${projectKey}'`,
     (error, stdout, stderr) => {
-      //console.log(`stdout: ${stdout}`);
-      //console.log(`stderr: ${stderr}`);
       if (error !== null) {
         console.log(`exec error: ${error}`);
       }
@@ -152,43 +140,106 @@ const moveProject = (id, projectKeyUser) => {
   );
 };
 
-const recursiveAsyncReadLine = function() {
+Reset = "\x1b[0m";
+Bright = "\x1b[1m";
+Dim = "\x1b[2m";
+Underscore = "\x1b[4m";
+Blink = "\x1b[5m";
+Reverse = "\x1b[7m";
+Hidden = "\x1b[8m";
+
+FgBlack = "\x1b[30m";
+FgRed = "\x1b[31m";
+FgGreen = "\x1b[32m";
+FgYellow = "\x1b[33m";
+FgBlue = "\x1b[34m";
+FgMagenta = "\x1b[35m";
+FgCyan = "\x1b[36m";
+FgWhite = "\x1b[37m";
+
+BgBlack = "\x1b[40m";
+BgRed = "\x1b[41m";
+BgGreen = "\x1b[42m";
+BgYellow = "\x1b[43m";
+BgBlue = "\x1b[44m";
+BgMagenta = "\x1b[45m";
+BgCyan = "\x1b[46m";
+BgWhite = "\x1b[47m";
+
+const recursiveAsyncReadLine = function () {
   const notes = (inboxNotes[i].notes || "")
     .split("\n")
-    .map(a => `\t${a}`)
+    .map((a) => `${a}`)
     .join("\n");
-
-  const mainQuestion = `title: ${
-    inboxNotes[i].title
-  }\nnotes: ${notes}\naction: c/n/p/m/q?\n`;
-  rl.question(mainQuestion, line => {
-    switch (line) {
-      case "c":
-        complete(inboxNotes[i].uuid);
-        i += 1;
-        break;
-      case "n":
-        i += 1;
-        break;
-      case "p":
-        i -= 1;
-        break;
-      case "m":
-        rl.question(topProjectsText, line => {
-          if (line === "q") {
-            recursiveAsyncReadLine(); //Calling this function again to ask new question
-            return;
-          }
-          moveProject(inboxNotes[i].uuid, line);
+  const notesArea =
+    notes === ""
+      ? "\n"
+      : `${FgYellow}${i}. notes${Reset}: ${
+          notes.indexOf("\n") != -1 ? "\n" : ""
+        }${notes}\n`;
+  const mainQuestion = `${FgBlue}\n${i}. title${Reset}: ${inboxNotes[i].title}\n${notesArea}${FgGreen}action: c/n/p/m/<number>/j/q/h?${Reset}\n`;
+  rl.question(mainQuestion, (line) => {
+    if (/^\d+$/.test(line)) {
+      i = parseInt(line);
+    } else {
+      switch (line) {
+        case "c":
+          complete(inboxNotes[i].uuid);
           i += 1;
-          recursiveAsyncReadLine(); //Calling this function again to ask new question
-        });
+          break;
+        case "n":
+          i += 1;
+          break;
+        case "p":
+          i -= 1;
+          break;
+        case "m":
+          rl.question(topProjectsText, (line) => {
+            if (line === "q") {
+              recursiveAsyncReadLine(); //Calling this function again to ask new question
+              return;
+            }
+            moveProject(inboxNotes[i].uuid, line);
+            i += 1;
+            recursiveAsyncReadLine(); //Calling this function again to ask new question
+          });
 
-        break;
-      case "q":
-        return rl.close();
-      default:
-        console.log("No such option. Please enter another: ");
+          break;
+        case "j":
+          rl.question("jump to title (q to quit): ", (line) => {
+            if (line === "q") {
+              recursiveAsyncReadLine(); //Calling this function again to ask new question
+              return;
+            }
+            let foundMatch = false;
+            for (let newI = i; newI < inboxNotes.length; ++newI) {
+              if (
+                (inboxNotes[newI].title || "empty string").indexOf(line) != -1
+              ) {
+                i = newI;
+                foundMatch = true;
+                break;
+              }
+            }
+            if (!foundMatch) {
+              console.log(
+                `Not able to find title match for this string: "${line}"`
+              );
+            }
+            recursiveAsyncReadLine(); //Calling this function again to ask new question
+          });
+
+          break;
+        case "q":
+          return rl.close();
+        case "h":
+          console.log(
+            "c: complete, n: next/skip, p: previous, m: move to project, [number]: jump to number in inbox, j: jump to title, q: quit, h: help"
+          );
+          break;
+        default:
+          console.log("No such option. Please enter another: ");
+      }
     }
     recursiveAsyncReadLine(); //Calling this function again to ask new question
   });

@@ -5,7 +5,12 @@
 
 // Constants (you'll need to replace this)..
 // See authorization in: https://culturedcode.com/things/support/articles/2803573/
-const authToken = "<YOUR AUTH TOKEN GOES HERE>";
+const authToken = "<AUTH TOKEN GOES HERE>";
+
+let batchSize = 1;
+if (process.argv[process.argv.length - 1] === "batch") {
+  batchSize = process.stdout.rows - 15;
+}
 
 const os = require("os");
 const db = require("better-sqlite3")(
@@ -129,6 +134,7 @@ const moveProject = (id, projectKeyUser) => {
   const [projectKey, projectValue] = topProjects[projectIndex];
 
   const now = new Date().toISOString();
+
   const exec = require("child_process").exec;
   exec(
     `open 'things:///update?auth-token=${authToken}&id=${id}&list-id=${projectKey}'`,
@@ -166,83 +172,127 @@ BgMagenta = "\x1b[45m";
 BgCyan = "\x1b[46m";
 BgWhite = "\x1b[47m";
 
+const getDetails = (number, item) => {
+  const notes = item.notes.split(/\n/).join("|");
+  let detailsLine = `${number}. ${FgYellow}${item.title}${Reset}`;
+  if (notes != "") {
+    detailsLine += `: ${FgBlue}${notes}${Reset}`;
+  }
+  return detailsLine;
+};
+
+const removedNumbersThisRound = new Set();
+
+const regexpMatchInput = /^(\d*)(\D*)$/;
+
 const recursiveAsyncReadLine = function () {
-  const notes = (inboxNotes[i].notes || "")
-    .split("\n")
-    .map((a) => `${a}`)
-    .join("\n");
-  const notesArea =
-    notes === ""
-      ? "\n"
-      : `${FgYellow}${i}. notes${Reset}: ${
-          notes.indexOf("\n") != -1 ? "\n" : ""
-        }${notes}\n`;
-  const mainQuestion = `${FgBlue}\n${i}. title${Reset}: ${inboxNotes[i].title}\n${notesArea}${FgGreen}action: c/n/p/m/<number>/j/q/h?${Reset}\n`;
-  rl.question(mainQuestion, (line) => {
-    if (/^\d+$/.test(line)) {
-      i = parseInt(line);
-    } else {
-      switch (line) {
-        case "c":
-          complete(inboxNotes[i].uuid);
-          i += 1;
-          break;
-        case "n":
-          i += 1;
-          break;
-        case "p":
-          i -= 1;
-          break;
-        case "m":
-          rl.question(topProjectsText, (line) => {
-            if (line === "q") {
-              recursiveAsyncReadLine(); //Calling this function again to ask new question
-              return;
-            }
-            moveProject(inboxNotes[i].uuid, line);
-            i += 1;
-            recursiveAsyncReadLine(); //Calling this function again to ask new question
-          });
-
-          break;
-        case "j":
-          rl.question("jump to title (q to quit): ", (line) => {
-            if (line === "q") {
-              recursiveAsyncReadLine(); //Calling this function again to ask new question
-              return;
-            }
-            let foundMatch = false;
-            for (let newI = i; newI < inboxNotes.length; ++newI) {
-              if (
-                (inboxNotes[newI].title || "empty string").indexOf(line) != -1
-              ) {
-                i = newI;
-                foundMatch = true;
-                break;
-              }
-            }
-            if (!foundMatch) {
-              console.log(
-                `Not able to find title match for this string: "${line}"`
-              );
-            }
-            recursiveAsyncReadLine(); //Calling this function again to ask new question
-          });
-
-          break;
-        case "q":
-          return rl.close();
-        case "h":
-          console.log(
-            "c: complete, n: next/skip, p: previous, m: move to project, [number]: jump to number in inbox, j: jump to title, q: quit, h: help"
-          );
-          break;
-        default:
-          console.log("No such option. Please enter another: ");
+  const getThisIterationOutput = () => {
+    let lineDetails = "";
+    for (let j = i; j < i + batchSize; ++j) {
+      lineDetails += getDetails(
+        removedNumbersThisRound.has(j) ? "#" : j,
+        inboxNotes[j]
+      );
+      if (j < i + batchSize - 1) {
+        lineDetails += "\n";
       }
     }
+
+    let mainQuestion = `${lineDetails}\n`;
+    if (batchSize === 1) {
+      mainQuestion += `${FgGreen}action: c/n/p/m/<number>/j/q/h?${Reset}\n`;
+    } else {
+      mainQuestion += `${FgGreen}action: [#]c/n/p/[#]m/j/q/h?${Reset}\n`;
+    }
+    return mainQuestion;
+  };
+  const handleThisIteration = (line) => {
+    const match = line.match(regexpMatchInput);
+    const [, number, command] = match;
+
+    const iprev = i;
+    if (number.length > 0) {
+      i = parseInt(number);
+    }
+    switch (command) {
+      case "c":
+        complete(inboxNotes[i].uuid);
+        if (batchSize === 1) {
+          i += 1; // just move forward
+        } else {
+          complete(inboxNotes[i].uuid);
+          removedNumbersThisRound.add(i);
+          i = iprev;
+          doThisIteration();
+        }
+        break;
+      case "n":
+        i += batchSize;
+        break;
+      case "p":
+        i -= batchSize;
+        break;
+      case "m":
+        rl.question(topProjectsText, (line) => {
+          if (line === "q") {
+            recursiveAsyncReadLine(); //Calling this function again to ask new question
+            return;
+          }
+          moveProject(inboxNotes[i].uuid, line);
+          if (batchSize === 1) {
+            i += 1;
+          } else {
+            removedNumbersThisRound.add(i);
+            i = iprev;
+          }
+          doThisIteration();
+        });
+
+        break;
+      case "j":
+        rl.question("jump to title (q to quit): ", (line) => {
+          if (line === "q") {
+            recursiveAsyncReadLine(); //Calling this function again to ask new question
+            return;
+          }
+          let foundMatch = false;
+          for (let newI = i; newI < inboxNotes.length; ++newI) {
+            if (
+              (inboxNotes[newI].title || "empty string").indexOf(line) != -1
+            ) {
+              i = newI;
+              foundMatch = true;
+              break;
+            }
+          }
+          if (!foundMatch) {
+            console.log(
+              `Not able to find title match for this string: "${line}"`
+            );
+          }
+          recursiveAsyncReadLine(); //Calling this function again to ask new question
+        });
+
+        break;
+      case "q":
+        return rl.close();
+      case "h":
+        console.log(
+          "c: complete, n: next/skip, p: previous, m: move to project, [number]: jump to number in inbox, j: jump to title, q: quit, h: help"
+        );
+        break;
+      default:
+        console.log("No such option. Please enter another: ");
+    }
     recursiveAsyncReadLine(); //Calling this function again to ask new question
-  });
+  };
+
+  const doThisIteration = () => {
+    rl.question(getThisIterationOutput(), (line) => {
+      handleThisIteration(line);
+    });
+  };
+  doThisIteration();
 };
 
 recursiveAsyncReadLine();

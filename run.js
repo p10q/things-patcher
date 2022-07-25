@@ -5,11 +5,12 @@
 
 // Constants (you'll need to replace this)..
 // See authorization in: https://culturedcode.com/things/support/articles/2803573/
-const authToken = "<AUTH TOKEN GOES HERE>";
+const authToken = "R6H-tAuKSY2nAKMldcCecw";
 
-let batchSize = 1;
-if (process.argv[process.argv.length - 1] === "batch") {
-  batchSize = process.stdout.rows - 15;
+// default to batching; however, do allow going one by one
+let batchSize = process.stdout.rows - 15;
+if (process.argv[process.argv.length - 1] === "single") {
+  batchSize = 1;
 }
 
 const os = require("os");
@@ -202,7 +203,7 @@ const recursiveAsyncReadLine = function () {
     if (batchSize === 1) {
       mainQuestion += `${FgGreen}action: c/n/p/m/<number>/j/q/h?${Reset}\n`;
     } else {
-      mainQuestion += `${FgGreen}action: [#]c/n/p/[#]m/j/q/h?${Reset}\n`;
+      mainQuestion += `${FgGreen}action: [#]c/n/p/[#]m/j/[#]g/q/h?${Reset}\n`;
     }
     return mainQuestion;
   };
@@ -213,6 +214,13 @@ const recursiveAsyncReadLine = function () {
     const iprev = i;
     if (number.length > 0) {
       i = parseInt(number);
+    }
+    // don't allow going to a number in batch mode becauase it's a bit confusing
+    // and easy to accidentally do
+    if (batchSize >= 1 && command === "") {
+      i = iprev;
+      doThisIteration();
+      return;
     }
     switch (command) {
       case "c":
@@ -225,6 +233,9 @@ const recursiveAsyncReadLine = function () {
           i = iprev;
           doThisIteration();
         }
+        break;
+      case "g":
+        // i already set, just go
         break;
       case "n":
         i += batchSize;

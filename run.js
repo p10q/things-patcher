@@ -118,13 +118,10 @@ const projectIdToInfo = allNotes.reduce((acc, item) => {
 }, {});
 
 db.close();
-//console.log(projectIdToInfo);
 
 const topProjects = [...Object.entries(projectIdToInfo)].sort(
   ([akey, avalue], [bkey, bvalue]) => bvalue.count - avalue.count
 );
-
-//console.log(topProjects);
 
 const topProjectsText =
   "q: cancel\n" +
@@ -213,8 +210,6 @@ const outputInColumns = (linesStr) => {
     maxWidth = line.length > maxWidth ? line.length : maxWidth;
   }
   let numColumns = Math.max(1, Math.floor(COLS / maxWidth));
-  //console.log("numColumns");
-  //console.log(numColumns);
   let numRows = Math.ceil(lines.length / numColumns);
   let outputLines = "";
   for (let i = 0; i < numRows; ++i) {
@@ -223,7 +218,6 @@ const outputInColumns = (linesStr) => {
       if (i + j * numRows > lines.length) {
         continue;
       }
-      //console.log(i + j * (numRows - 1));
       const line = lines[i + j * numRows];
       if (!line) {
         continue;
@@ -393,7 +387,7 @@ const recursiveAsyncReadLine = function () {
           return rl.close();
         case "h":
           console.log(
-            "c: complete, n: next/skip, p: previous, m: move to project, [number]: jump to number in inbox, j: jump to title, i: info, +: increase batch size, -: decrease batch size, q: quit, h: help"
+            "[#]c: complete, n: next/skip, p: previous, [#]m: move to project, [#]j: jump to title, [#]i: info, +: increase batch size, -: decrease batch size, q: quit, h: help"
           );
           break;
         case "+":

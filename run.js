@@ -67,6 +67,12 @@ const keys = [
   "E",
   "F",
   "G",
+  "H",
+  "I",
+  "J",
+  "K",
+  "L",
+  "M",
 ];
 
 const inboxNotes = db
@@ -76,13 +82,13 @@ const inboxNotes = db
   .all();
 const projectsByMostPopular = db
   .prepare(
-    "select *,count(*) from TMTask where status=0 group by project order by count(*) desc"
+    "select TMTask2.title,TMTask.project,count(TMTask.project),TMTask2.* from TMTask join TMTask as TMTask2 on TMTask.project = TMTask2.uuid where TMTask.status=0 and TMTask2.trashed=0 group by TMTask.project order by count(TMTask.project) desc"
   )
   .all();
 const allNotes = db.prepare("select * from TMTask where status=0").all();
 
 const projectIdToCount = projectsByMostPopular.reduce((acc, cur) => {
-  acc[cur.project] = cur["count(*)"];
+  acc[cur.uuid] = cur["count(TMTask.project)"];
   return acc;
 }, {});
 const projectIdToInfo = allNotes.reduce((acc, item) => {
@@ -97,7 +103,7 @@ db.close();
 
 const topProjects = [...Object.entries(projectIdToInfo)]
   .sort(([akey, avalue], [bkey, bvalue]) => bvalue.count - avalue.count)
-  .slice(0, keys.length);
+  .slice(0, batchSize);
 
 //console.log(topProjects);
 

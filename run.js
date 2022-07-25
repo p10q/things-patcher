@@ -8,7 +8,13 @@
 const authToken = "R6H-tAuKSY2nAKMldcCecw";
 
 // default to batching; however, do allow going one by one
-let batchSize = process.stdout.rows - 15;
+const ROWS = process.stdout.rows;
+const COLS = process.stdout.columns;
+
+const MAX_TITLE = 30;
+const MAX_DESCR = 15;
+
+let batchSize = ROWS * 2;
 if (process.argv[process.argv.length - 1] === "single") {
   batchSize = 1;
 }
@@ -73,11 +79,24 @@ const keys = [
   "K",
   "L",
   "M",
+  "N",
+  "O",
+  "P",
+  "Q",
+  "R",
+  "S",
+  "T",
+  "U",
+  "V",
+  "W",
+  "X",
+  "Y",
+  "Z",
 ];
 
 const inboxNotes = db
   .prepare(
-    "select * from TMTask where project is null and status=0 and actionGroup is null and type=0 order by [index] limit 200"
+    "select * from TMTask where project is null and status=0 and actionGroup is null and type=0 order by [index]"
   )
   .all();
 const projectsByMostPopular = db
@@ -101,9 +120,9 @@ const projectIdToInfo = allNotes.reduce((acc, item) => {
 db.close();
 //console.log(projectIdToInfo);
 
-const topProjects = [...Object.entries(projectIdToInfo)]
-  .sort(([akey, avalue], [bkey, bvalue]) => bvalue.count - avalue.count)
-  .slice(0, batchSize);
+const topProjects = [...Object.entries(projectIdToInfo)].sort(
+  ([akey, avalue], [bkey, bvalue]) => bvalue.count - avalue.count
+);
 
 //console.log(topProjects);
 
@@ -179,9 +198,74 @@ BgMagenta = "\x1b[45m";
 BgCyan = "\x1b[46m";
 BgWhite = "\x1b[47m";
 
-const getDetails = (number, item) => {
-  const notes = item.notes.split(/\n/).join("|");
-  let detailsLine = `${number}. ${FgYellow}${item.title}${Reset}`;
+const outputInColumns = (linesStr) => {
+  const lines = linesStr.split("\n");
+  const linesWithoutFormatting = [...lines];
+  for (let i = 0; i < linesWithoutFormatting.length; ++i) {
+    linesWithoutFormatting[i] = linesWithoutFormatting[i].replace(
+      /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g,
+      ""
+    );
+  }
+  // get max width
+  let maxWidth = 0;
+  for (let line of linesWithoutFormatting) {
+    maxWidth = line.length > maxWidth ? line.length : maxWidth;
+  }
+  let numColumns = Math.max(1, Math.floor(COLS / maxWidth));
+  //console.log("numColumns");
+  //console.log(numColumns);
+  let numRows = Math.ceil(lines.length / numColumns);
+  let outputLines = "";
+  for (let i = 0; i < numRows; ++i) {
+    let outputLine = "";
+    for (let j = 0; j < numColumns; ++j) {
+      if (i + j * numRows > lines.length) {
+        continue;
+      }
+      //console.log(i + j * (numRows - 1));
+      const line = lines[i + j * numRows];
+      if (!line) {
+        continue;
+      }
+      const lineWithoutFormatting = linesWithoutFormatting[i + j * numRows];
+      const lineLength = lineWithoutFormatting.length;
+      outputLine += line;
+      if (maxWidth - lineLength > 0) {
+        outputLine += " ".repeat(Math.max(0, maxWidth - lineLength));
+      }
+      if (numColumns > 1 && j < numColumns - 1) {
+        outputLine += " ";
+      }
+    }
+    outputLines += outputLine + "\n";
+  }
+  return outputLines;
+};
+
+const getDetails = (
+  number,
+  item,
+  maxDigits,
+  maxTitle = MAX_TITLE,
+  maxDescr = MAX_DESCR,
+  newLineNotesDelimiter = "|"
+) => {
+  if (!item) {
+    return "";
+  }
+  const title = item.title.substr(0, maxTitle);
+  const notes = (item.notes || "")
+    .split(/\n/)
+    .join(newLineNotesDelimiter)
+    .substr(0, maxTitle - title.length + maxDescr);
+  let paddedNumber;
+  if (number === "#") {
+    paddedNumber = "#".repeat(maxDigits);
+  } else {
+    paddedNumber = String(number).padStart(maxDigits, "0");
+  }
+  let detailsLine = `${paddedNumber}. ${FgYellow}${title}${Reset}`;
   if (notes != "") {
     detailsLine += `: ${FgBlue}${notes}${Reset}`;
   }
@@ -192,13 +276,19 @@ const removedNumbersThisRound = new Set();
 
 const regexpMatchInput = /^(\d*)(\D*)$/;
 
+const numDigits = (x) => {
+  return Math.max(Math.floor(Math.log10(Math.abs(x))), 0) + 1;
+};
+
 const recursiveAsyncReadLine = function () {
   const getThisIterationOutput = () => {
     let lineDetails = "";
+    const maxDigitsNumberInIteration = numDigits(i + batchSize);
     for (let j = i; j < i + batchSize; ++j) {
       lineDetails += getDetails(
         removedNumbersThisRound.has(j) ? "#" : j,
-        inboxNotes[j]
+        inboxNotes[j],
+        maxDigitsNumberInIteration
       );
       if (j < i + batchSize - 1) {
         lineDetails += "\n";
@@ -209,105 +299,130 @@ const recursiveAsyncReadLine = function () {
     if (batchSize === 1) {
       mainQuestion += `${FgGreen}action: c/n/p/m/<number>/j/q/h?${Reset}\n`;
     } else {
-      mainQuestion += `${FgGreen}action: [#]c/n/p/[#]m/j/[#]g/q/h?${Reset}\n`;
+      mainQuestion += `${FgGreen}action: [#]c/n/p/[#]m/j/[#]g/[#]i/q/h?${Reset}\n`;
     }
-    return mainQuestion;
+    return outputInColumns(mainQuestion);
   };
   const handleThisIteration = (line) => {
-    const match = line.match(regexpMatchInput);
-    const [, number, command] = match;
+    let numberAndCommands = line.split("/");
+    let outputFull = false;
+    for (let numberAndCommand of numberAndCommands) {
+      const match = numberAndCommand.match(regexpMatchInput);
+      const [, number, command] = match;
 
-    const iprev = i;
-    if (number.length > 0) {
-      i = parseInt(number);
-    }
-    // don't allow going to a number in batch mode becauase it's a bit confusing
-    // and easy to accidentally do
-    if (batchSize >= 1 && command === "") {
-      i = iprev;
-      doThisIteration();
-      return;
-    }
-    switch (command) {
-      case "c":
-        complete(inboxNotes[i].uuid);
-        if (batchSize === 1) {
-          i += 1; // just move forward
-        } else {
+      const iprev = i;
+      if (number.length > 0) {
+        i = parseInt(number);
+      }
+      // don't allow going to a number in batch mode becauase it's a bit confusing
+      // and easy to accidentally do
+      if (batchSize >= 1 && command === "") {
+        i = iprev;
+        outputFull = true;
+        continue;
+      }
+      switch (command) {
+        case "c":
           complete(inboxNotes[i].uuid);
-          removedNumbersThisRound.add(i);
-          i = iprev;
-          doThisIteration();
-        }
-        break;
-      case "g":
-        // i already set, just go
-        break;
-      case "n":
-        i += batchSize;
-        break;
-      case "p":
-        i -= batchSize;
-        break;
-      case "m":
-        rl.question(topProjectsText, (line) => {
-          if (line === "q") {
-            recursiveAsyncReadLine(); //Calling this function again to ask new question
-            return;
-          }
-          moveProject(inboxNotes[i].uuid, line);
           if (batchSize === 1) {
-            i += 1;
+            i += 1; // just move forward
           } else {
+            complete(inboxNotes[i].uuid);
             removedNumbersThisRound.add(i);
             i = iprev;
           }
-          doThisIteration();
-        });
-
-        break;
-      case "j":
-        rl.question("jump to title (q to quit): ", (line) => {
-          if (line === "q") {
-            recursiveAsyncReadLine(); //Calling this function again to ask new question
-            return;
-          }
-          let foundMatch = false;
-          for (let newI = i; newI < inboxNotes.length; ++newI) {
-            if (
-              (inboxNotes[newI].title || "empty string").indexOf(line) != -1
-            ) {
-              i = newI;
-              foundMatch = true;
-              break;
+          outputFull = true;
+          break;
+        case "g":
+          // i already set, just go
+          outputFull = true;
+          break;
+        case "n":
+          i += batchSize;
+          outputFull = true;
+          break;
+        case "p":
+          i -= batchSize;
+          outputFull = true;
+          break;
+        case "m":
+          rl.question(outputInColumns(topProjectsText), (line) => {
+            if (line === "q") {
+              recursiveAsyncReadLine(); //Calling this function again to ask new question
+              return;
             }
-          }
-          if (!foundMatch) {
-            console.log(
-              `Not able to find title match for this string: "${line}"`
-            );
-          }
-          recursiveAsyncReadLine(); //Calling this function again to ask new question
-        });
+            moveProject(inboxNotes[i].uuid, line);
+            if (batchSize === 1) {
+              i += 1;
+            } else {
+              removedNumbersThisRound.add(i);
+              i = iprev;
+            }
+            doThisIteration();
+          });
 
-        break;
-      case "q":
-        return rl.close();
-      case "h":
-        console.log(
-          "c: complete, n: next/skip, p: previous, m: move to project, [number]: jump to number in inbox, j: jump to title, q: quit, h: help"
-        );
-        break;
-      default:
-        console.log("No such option. Please enter another: ");
+          outputFull = true;
+          break;
+        case "j":
+          rl.question("jump to title (q to quit): ", (line) => {
+            if (line === "q") {
+              recursiveAsyncReadLine(); //Calling this function again to ask new question
+              return;
+            }
+            let foundMatch = false;
+            for (let newI = i; newI < inboxNotes.length; ++newI) {
+              if (
+                (inboxNotes[newI].title || "empty string").indexOf(line) != -1
+              ) {
+                i = newI;
+                foundMatch = true;
+                break;
+              }
+            }
+            if (!foundMatch) {
+              console.log(
+                `Not able to find title match for this string: "${line}"`
+              );
+            }
+            recursiveAsyncReadLine(); //Calling this function again to ask new question
+          });
+
+          outputFull = true;
+          break;
+        case "q":
+          return rl.close();
+        case "h":
+          console.log(
+            "c: complete, n: next/skip, p: previous, m: move to project, [number]: jump to number in inbox, j: jump to title, i: info, +: increase batch size, -: decrease batch size, q: quit, h: help"
+          );
+          break;
+        case "+":
+          batchSize += 5;
+          outputFull = true;
+          break;
+        case "-":
+          batchSize -= 5;
+          outputFull = true;
+          break;
+        case "i":
+          console.log("Full information:\n");
+          console.log(getDetails(i, inboxNotes[i], 0, 1000, 1000, "\n"));
+          console.log("\n");
+          break;
+        default:
+          console.log("No such option. Please enter another: ");
+      }
     }
-    recursiveAsyncReadLine(); //Calling this function again to ask new question
+    doThisIteration(outputFull);
   };
 
-  const doThisIteration = () => {
-    rl.question(getThisIterationOutput(), (line) => {
-      handleThisIteration(line);
-    });
+  const doThisIteration = (outputLinesThisIteration = true) => {
+    rl.question(
+      outputLinesThisIteration ? getThisIterationOutput() : "",
+      (line) => {
+        handleThisIteration(line);
+      }
+    );
   };
   doThisIteration();
 };

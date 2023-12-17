@@ -8,8 +8,7 @@
   ],
   "author": "Tom Harada (tmharada@gmail.com)",
   "license": "MIT",
-  "devDependencies": {},
   "dependencies": {
-    "better-sqlite3": "^7.4.6"
+    "better-sqlite3": "^9.2.0"
   }
 }

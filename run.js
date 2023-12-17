@@ -5,7 +5,7 @@
 
 // Constants (you'll need to replace this)..
 // See authorization in: https://culturedcode.com/things/support/articles/2803573/
-const authToken = "R6H-tAuKSY2nAKMldcCecw";
+const authToken = "<auth token goes here>
 
 // default to batching; however, do allow going one by one
 const ROWS = process.stdout.rows;
@@ -21,7 +21,7 @@ if (process.argv[process.argv.length - 1] === "single") {
 
 const os = require("os");
 const db = require("better-sqlite3")(
-  `${os.homedir()}/Library/Group Containers/JLMPQHK86H.com.culturedcode.ThingsMac/Things Database.thingsdatabase/main.sqlite`,
+  `${os.homedir()}/Library/Group Containers/JLMPQHK86H.com.culturedcode.ThingsMac/ThingsData-YU9UD/Things Database.thingsdatabase/main.sqlite`,
   {}
 );
 
@@ -96,7 +96,7 @@ const keys = [
 
 const inboxNotes = db
   .prepare(
-    "select * from TMTask where project is null and status=0 and actionGroup is null and type=0 order by [index]"
+    "select * from TMTask where project is null and status=0 and type=0 order by [index]"
   )
   .all();
 const projectsByMostPopular = db
